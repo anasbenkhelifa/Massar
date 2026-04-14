@@ -1,0 +1,47 @@
+name: massar
+description: "Massar+ — AI-powered career guidance for Algerian university students."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
+  # UI
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  fl_chart: ^0.69.0
+
+  # Navigation & State
+  go_router: ^14.6.2
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Storage
+  shared_preferences: ^2.3.3
+  flutter_dotenv: ^5.2.1
+
+  # File
+  file_picker: ^8.1.7
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.5
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - .env
