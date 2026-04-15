@@ -89,6 +89,52 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // Map feature card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: GestureDetector(
+                    onTap: () => context.push('/map'),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.accent.withAlpha(18) : AppColors.accent.withAlpha(15),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.accent.withAlpha(50)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.map_rounded, color: AppColors.accent, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(l.homeNavGuide, style: TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 2),
+                                    Text('اكتشف الشركات والمؤسسات القريبة منك', style: TextStyle(color: textSecondary, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_forward_ios_rounded, color: AppColors.accent, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ).animate(delay: 50.ms).fadeIn(duration: 300.ms),
+
                 // Search bar
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),

@@ -774,4 +774,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get profileContinueButton => 'متابعة من حيث توقفت';
+
+  @override
+  String get requestInfo => 'طلب معلومات';
+
+  @override
+  String get mapLoadError => 'تعذر تحميل البيانات';
+
+  @override
+  String get mapRetry => 'إعادة المحاولة';
 }

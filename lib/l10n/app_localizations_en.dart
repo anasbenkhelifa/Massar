@@ -777,4 +777,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileContinueButton => 'Continue where I left off';
+
+  @override
+  String get requestInfo => 'Request info';
+
+  @override
+  String get mapLoadError => 'Could not load data';
+
+  @override
+  String get mapRetry => 'Try again';
 }

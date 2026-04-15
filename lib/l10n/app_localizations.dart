@@ -1617,6 +1617,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue where I left off'**
   String get profileContinueButton;
+
+  /// No description provided for @requestInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Request info'**
+  String get requestInfo;
+
+  /// No description provided for @mapLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load data'**
+  String get mapLoadError;
+
+  /// No description provided for @mapRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get mapRetry;
 }
 
 class _AppLocalizationsDelegate

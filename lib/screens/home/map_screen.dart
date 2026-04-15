@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../models/company_model.dart';
 import '../../services/map_api_service.dart';
+import '../../data/wilayas.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   final bool standalone;
@@ -24,6 +25,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   List<Company> _companies = [];
   bool _isLoading = true;
+  String? _errorMessage;
   LatLng _center = const LatLng(36.7367, 3.0869); // Default Algiers
 
   @override
@@ -33,9 +35,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final result = await _apiService.getProfileCompanies(radiusKm: 50.0, live: false);
+      if (!mounted) return;
       setState(() {
         _companies = result.companies;
         _isLoading = false;
@@ -43,10 +49,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
       // Move map after a slight delay to ensure it's rendered
       Future.delayed(const Duration(milliseconds: 100), () {
+        if (!mounted) return;
         _mapController.move(_center, 12);
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
     }
   }
 
@@ -73,35 +84,80 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       backgroundColor: bg1,
       body: Stack(
         children: [
-          // Flutter Map
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _center,
-              initialZoom: 12.0,
-              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.massar.app',
-              ),
-              MarkerLayer(
-                markers: _companies.map((c) => Marker(
-                  point: LatLng(c.latitude, c.longitude),
-                  width: 48,
-                  height: 48,
-                  child: GestureDetector(
-                    onTap: () => _showCompanyDetails(context, c, isDark),
-                    child: _MapPin(
-                      color: _getPinColor(c),
-                      isVerified: c.source == 'static',
-                    ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+          if (_errorMessage != null)
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.glassFill : Colors.white.withAlpha(200),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: isDark ? AppColors.glassBorder : Colors.black.withAlpha(15)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 48),
+                        const SizedBox(height: 16),
+                        Text(
+                          l.mapLoadError,
+                          style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage!,
+                          style: TextStyle(color: textSecondary, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                          ),
+                          onPressed: _loadData,
+                          child: Text(l.mapRetry, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
                   ),
-                )).toList(),
+                ),
               ),
-            ],
-          ),
+            )
+          else
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _center,
+                initialZoom: 12.0,
+                interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.massar.app',
+                ),
+                MarkerLayer(
+                  markers: _companies.map((c) => Marker(
+                    point: LatLng(c.latitude, c.longitude),
+                    width: 48,
+                    height: 48,
+                    child: GestureDetector(
+                      onTap: () => _showCompanyDetails(context, c, isDark),
+                      child: _MapPin(
+                        color: _getPinColor(c),
+                        isVerified: c.source == 'static',
+                      ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
 
           // Header
           SafeArea(
@@ -267,7 +323,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('طلب معلومات', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text(AppLocalizations.of(context)!.requestInfo, style: const TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
@@ -280,10 +336,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
   
   String _resolveWilaya(int code) {
-    // Basic resolver
-    if (code == 16) return 'Alger';
-    // Ideally use kWilayas from lib/data/wilayas.dart
-    return 'Wilaya $code';
+    final wilaya = kWilayas.where((w) => w.code == code).firstOrNull;
+    return wilaya?.nameFr ?? 'Wilaya $code';
   }
 }
 

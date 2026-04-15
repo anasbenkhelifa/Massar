@@ -11,6 +11,7 @@ import 'screens/onboarding/processing_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/home/chat_screen.dart';
 import 'screens/home/profile_screen.dart';
+import 'screens/home/guide_screen.dart';
 import 'screens/home/map_screen.dart';
 import 'screens/home/career_path_screen.dart';
 import 'screens/home/subject_matrix_screen.dart';
@@ -84,6 +85,10 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/guide',
+      pageBuilder: (context, state) => _buildPage(context, state, const GuideScreen()),
+    ),
+    GoRoute(
+      path: '/map',
       pageBuilder: (context, state) => _buildPage(context, state, const MapScreen()),
     ),
     GoRoute(

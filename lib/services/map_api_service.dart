@@ -12,35 +12,39 @@ class MapApiService {
     double radiusKm = 50.0,
     bool live = false,
   }) async {
-    try {
-      final uri = Uri.parse(
-          '$baseUrl/map/profile-companies?radius_km=$radiusKm&live=$live');
-      final response = await http.get(
-        uri,
-        headers: {
-          // TODO: Get real Auth Token from auth_provider/shared_prefs
-          'Authorization': 'Bearer $placeholderToken',
-        },
-      );
+    final uri = Uri.parse(
+        '$baseUrl/map/profile-companies?radius_km=$radiusKm&live=$live');
+    
+    final response = await http.get(
+      uri,
+      headers: {
+        // TODO: Get real Auth Token from auth_provider/shared_prefs
+        'Authorization': 'Bearer $placeholderToken',
+      },
+    ).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => throw Exception('Request timed out'),
+    );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> companiesJson = data['companies'] ?? [];
-        final companies = companiesJson.map((json) => Company.fromJson(json)).toList();
-        
-        double lat = 36.7367;
-        double lng = 3.0869;
-        if (data['center'] != null) {
-          lat = (data['center']['lat'] as num?)?.toDouble() ?? lat;
-          lng = (data['center']['lng'] as num?)?.toDouble() ?? lng;
-        }
-
-        return (center: LatLng(lat, lng), companies: companies);
-      } else {
-        return (center: const LatLng(36.7367, 3.0869), companies: []);
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = json.decode(response.body);
+      final List<dynamic> companiesJson = data['companies'] ?? [];
+      final companies = companiesJson.map((json) => Company.fromJson(json)).toList();
+      
+      double lat = 36.7367;
+      double lng = 3.0869;
+      if (data['center'] != null) {
+        lat = (data['center']['lat'] as num?)?.toDouble() ?? lat;
+        lng = (data['center']['lng'] as num?)?.toDouble() ?? lng;
       }
-    } catch (e) {
-      return (center: const LatLng(36.7367, 3.0869), companies: []);
+
+      return (center: LatLng(lat, lng), companies: companies);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized — token invalid');
+    } else if (response.statusCode >= 500) {
+      throw Exception('Server error ${response.statusCode}');
+    } else {
+      throw Exception('Unexpected response ${response.statusCode}');
     }
   }
 }

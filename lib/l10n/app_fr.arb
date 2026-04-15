@@ -288,5 +288,8 @@
   },
   "profileContinueFilling": "Complétez votre profil",
   "profileContinueFillingDesc": "Vous y êtes presque ! Finissez votre profil pour obtenir des recommandations personnalisées.",
-  "profileContinueButton": "Continuer là où j'ai arrêté"
+  "profileContinueButton": "Continuer là où j'ai arrêté",
+  "requestInfo": "Demander des infos",
+  "mapLoadError": "Impossible de charger les données",
+  "mapRetry": "Réessayer"
 }

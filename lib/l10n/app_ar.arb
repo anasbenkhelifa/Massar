@@ -288,5 +288,8 @@
   },
   "profileContinueFilling": "أكمل ملفك الشخصي",
   "profileContinueFillingDesc": "أنت على وشك الانتهاء! أكمل بياناتك للحصول على توصيات مخصصة لك.",
-  "profileContinueButton": "متابعة من حيث توقفت"
+  "profileContinueButton": "متابعة من حيث توقفت",
+  "requestInfo": "طلب معلومات",
+  "mapLoadError": "تعذر تحميل البيانات",
+  "mapRetry": "إعادة المحاولة"
 }

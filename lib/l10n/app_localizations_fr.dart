@@ -781,4 +781,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get profileContinueButton => 'Continuer là où j\'ai arrêté';
+
+  @override
+  String get requestInfo => 'Demander des infos';
+
+  @override
+  String get mapLoadError => 'Impossible de charger les données';
+
+  @override
+  String get mapRetry => 'Réessayer';
 }

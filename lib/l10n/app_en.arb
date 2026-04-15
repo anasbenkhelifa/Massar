@@ -288,5 +288,8 @@
   },
   "profileContinueFilling": "Complete your profile",
   "profileContinueFillingDesc": "You're almost there! Finish filling your profile to unlock personalized recommendations.",
-  "profileContinueButton": "Continue where I left off"
+  "profileContinueButton": "Continue where I left off",
+  "requestInfo": "Request info",
+  "mapLoadError": "Could not load data",
+  "mapRetry": "Try again"
 }
