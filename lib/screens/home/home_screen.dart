@@ -7,7 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/onboarding_provider.dart';
 import '../../theme/app_theme.dart';
 import 'chat_screen.dart';
-import 'guide_screen.dart';
+import 'map_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -108,7 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             children: const [
               _HomeDashboard(),
               ChatScreen(standalone: false),
-              GuideScreen(standalone: false),
+              MapScreen(standalone: false),
               ProfileScreen(standalone: false),
             ],
           ),

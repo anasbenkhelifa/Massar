@@ -26,6 +26,11 @@ dependencies:
   # Storage
   shared_preferences: ^2.3.3
 
+  # Map & Network
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
