@@ -1,29 +1,39 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/company_model.dart';
 
 class MapApiService {
-  // Use Render deployment URL or localhost if not deploying yet.
-  static const String baseUrl = 'https://massar.onrender.com/api/v1';
-  // TODO: inject real token from auth_provider once backend auth is implemented
-  static const String placeholderToken = 'placeholder-token';
+  static const String baseUrl = 'https://massar-backend.onrender.com/api/v1';
 
   Future<({LatLng center, List<Company> companies})> getProfileCompanies({
     double radiusKm = 50.0,
     bool live = false,
   }) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl/map/profile-companies?radius_km=$radiusKm&live=$live');
+      // Read wilaya from onboarding data stored locally
+      final prefs = await SharedPreferences.getInstance();
+      int? wilayaCode;
+      final onboardingJson = prefs.getString('massar_onboarding_state');
+      if (onboardingJson != null) {
+        try {
+          final map = json.decode(onboardingJson) as Map<String, dynamic>;
+          wilayaCode = (map['wilayaCode'] as num?)?.toInt() ??
+              (map['homeWilayaCode'] as num?)?.toInt();
+        } catch (_) {}
+      }
 
-      final response = await http.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $placeholderToken',
-        },
-      ).timeout(
-        const Duration(seconds: 10),
+      // Build URL — use public /companies endpoint (no auth needed)
+      final params = {
+        'radius_km': radiusKm.toString(),
+        'live': live.toString(),
+        if (wilayaCode != null) 'wilaya': wilayaCode.toString(),
+      };
+      final uri = Uri.parse('$baseUrl/map/companies').replace(queryParameters: params);
+
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 15),
         onTimeout: () => throw Exception('Request timed out'),
       );
 
@@ -31,8 +41,9 @@ class MapApiService {
         final Map<String, dynamic> data = json.decode(response.body);
         final List<dynamic> companiesJson = data['companies'] ?? [];
         final companies =
-            companiesJson.map((json) => Company.fromJson(json)).toList();
+            companiesJson.map((j) => Company.fromJson(j)).toList();
 
+        // Use center returned by backend, else wilaya center, else Algiers
         double lat = 36.7367;
         double lng = 3.0869;
         if (data['center'] != null) {
@@ -42,15 +53,13 @@ class MapApiService {
 
         return (center: LatLng(lat, lng), companies: companies);
       } else if (response.statusCode == 401) {
-        throw Exception('Unauthorized — token invalid');
+        throw Exception('Unauthorized');
       } else if (response.statusCode >= 500) {
         throw Exception('Server error ${response.statusCode}');
       } else {
-        // Backend not ready — fall back to mock data
         return _getMockData();
       }
     } catch (_) {
-      // Network error / timeout / backend not deployed — use mock data
       return _getMockData();
     }
   }
