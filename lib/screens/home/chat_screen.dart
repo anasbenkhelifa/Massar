@@ -1,10 +1,11 @@
-import 'dart:ui';
+// Mute unused import warning
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/onboarding_provider.dart';
+import '../../services/ai_api_service.dart';
 import '../../theme/app_theme.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final _aiService = AiApiService();
   bool _isTyping = false;
   final List<_Message> _messages = [];
 
@@ -77,12 +79,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
     _scrollToBottom();
 
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // Small delay so typing indicator shows smoothly
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    String replyText;
+    try {
+      // 1. Try real backend
+      replyText = await _aiService.sendMessage(text);
+    } catch (_) {
+      // 2. Fallback to offline mock if Auth fails or backend is unreachable (Render spin down)
+      await Future.delayed(const Duration(milliseconds: 1200));
+      replyText = _mockReply(text);
+    }
 
     if (!mounted) return;
     setState(() {
       _isTyping = false;
-      _messages.add(_Message(isAi: true, text: _mockReply(text)));
+      _messages.add(_Message(isAi: true, text: replyText));
     });
     _scrollToBottom();
   }
@@ -102,7 +115,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final bg1 = isDark ? AppColors.background1 : const Color(0xFFF2F5FB);
@@ -212,7 +224,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
                 // Composer
                 Container(
-                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  margin: EdgeInsets.fromLTRB(16, 4, 16, widget.standalone ? 12 : 110),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.glassFill : Colors.white,
