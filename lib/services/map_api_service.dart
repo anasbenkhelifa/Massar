@@ -33,7 +33,7 @@ class MapApiService {
       final uri = Uri.parse('$baseUrl/map/companies').replace(queryParameters: params);
 
       final response = await http.get(uri).timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 25),
         onTimeout: () => throw Exception('Request timed out'),
       );
 

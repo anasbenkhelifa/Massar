@@ -40,7 +40,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _errorMessage = null;
     });
     try {
-      final result = await _apiService.getProfileCompanies(radiusKm: 50.0, live: false);
+      final result = await _apiService.getProfileCompanies(radiusKm: 100.0, live: true);
       if (!mounted) return;
       setState(() {
         _companies = result.companies;
@@ -293,7 +293,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   children: [
                     Icon(Icons.location_on_rounded, size: 16, color: textSecondary),
                     const SizedBox(width: 6),
-                    Expanded(child: Text('${c.commune}, $_resolveWilaya(c.wilayaCode)', style: TextStyle(color: textSecondary, fontSize: 14))),
+                    Expanded(child: Text('${c.commune != null ? '${c.commune}, ' : ''}${_resolveWilaya(c.wilayaCode)}', style: TextStyle(color: textSecondary, fontSize: 14))),
                   ],
                 ),
                 const SizedBox(height: 16),
