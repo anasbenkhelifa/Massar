@@ -134,6 +134,7 @@ class _GuideScreenState extends ConsumerState<GuideScreen> {
                     ),
                   ),
                 ).animate(delay: 50.ms).fadeIn(duration: 300.ms),
+                const SizedBox(height: 14),
 
                 // Search bar
                 Padding(
