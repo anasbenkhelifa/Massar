@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dentus Banner Editor</title>
+<style>
+:root{--bg:#f4f5f8;--panel:#fff;--line:#dfe2ea;--ink:#1d2330;--acc:#e8457f;--acc2:#35b8d8}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+#app{display:grid;grid-template-columns:200px 1fr 260px;grid-template-rows:44px 1fr;height:100%}
+#top{grid-column:1/4;display:flex;gap:6px;align-items:center;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+button,select,input{font:inherit}
+button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--acc2)}
+#top .sp{flex:1}
+#layers,#props{background:var(--panel);overflow:auto;padding:8px}
+#layers{border-right:1px solid var(--line)}#props{border-left:1px solid var(--line)}
+h4{margin:6px 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#6b7385}
+.layer{padding:4px 6px;border-radius:5px;cursor:pointer;display:flex;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer:hover{background:#eef1f6}.layer.on{background:#fde3ec;color:#a21849}
+#wrap{overflow:auto;position:relative;background:repeating-conic-gradient(#e9ebf0 0 25%,#f7f8fa 0 50%) 0 0/20px 20px}
+#holder{position:relative;margin:30px}
+#stage{position:absolute;left:0;top:0;width:2000px;height:413px;transform-origin:0 0;background:#fff;overflow:hidden;user-select:none}
+.obj{position:absolute;cursor:move;transform-origin:50% 50%}
+.obj:hover{outline:1px dashed var(--acc2)}
+.obj.text{white-space:pre-wrap}
+.obj[contenteditable=true]{cursor:text;outline:1px solid var(--acc2);user-select:text}
+.obj img{width:100%;height:100%;pointer-events:none;display:block;-webkit-user-drag:none}
+#ov{position:absolute;left:0;top:0;width:2000px;height:413px;pointer-events:none;transform-origin:0 0}
+.sb{position:absolute;border:1px solid var(--acc);transform-origin:50% 50%}
+.h{position:absolute;background:#fff;border:1px solid var(--acc);pointer-events:auto}
+.rot{border-radius:50%;background:var(--acc)}
+#marq{position:absolute;border:1px dashed var(--acc2);background:rgba(53,184,216,.12);pointer-events:none;display:none}
+.row{display:flex;align-items:center;gap:6px;margin:5px 0}.row label{width:78px;color:#6b7385}
+.row input[type=text],.row input[type=number],.row select{flex:1;min-width:0;padding:3px 5px;border:1px solid var(--line);border-radius:5px}
+.row input[type=color]{width:34px;height:24px;padding:0;border:1px solid var(--line)}
+textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:5px;padding:5px;font:inherit}
+.hint{color:#8a93a6;font-size:11px;line-height:1.4;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="top">
+  <b style="color:var(--acc)">Dentus Editor</b>
+  <button data-a="addText">+ Texte</button><button data-a="addRect">+ Rectangle</button><button data-a="addEllipse">+ Ellipse</button><button data-a="addImage">+ Image</button>
+  <span style="width:10px"></span>
+  <button data-a="undo">↶</button><button data-a="redo">↷</button>
+  <button data-a="dup">Dupliquer</button><button data-a="del">Supprimer</button>
+  <button data-a="front">Premier plan</button><button data-a="back">Arrière-plan</button>
+  <button data-a="lock">Verrouiller</button>
+  <span class="sp"></span>
+  <button data-a="zoomOut">−</button><span id="zl">100%</span><button data-a="zoomIn">+</button><button data-a="fit">Ajuster</button>
+  <button data-a="save">Enregistrer JSON</button><button data-a="load">Ouvrir JSON</button><button data-a="reset">Réinitialiser</button>
+ </div>
+ <div id="layers"><h4>Calques</h4><div id="layerList"></div></div>
+ <div id="wrap"><div id="holder"><div id="stage"></div><div id="ov"></div><div id="marq"></div></div></div>
+ <div id="props"></div>
+</div>
+<input type="file" id="fileImg" accept="image/*" hidden><input type="file" id="fileJson" accept=".json" hidden>
+<script>
+const W = 2000, H = 413, KEY = 'dentus-banner-v1';
+const PINK = '#e8457f', CYAN = '#2fb6d6', DARK = '#1d2330', GREY = '#3d4558';
+let objs = [], sel = new Set(), zoom = 1, undoS = [], redoS = [], editing = false, uid = 1;
+
+/* ---------- default document: every item of the banner is its own object ---------- */
+const T = (name, x, y, w, text, o = {}) => ({ type: 'text', name, x, y, w, h: o.h || (o.size || 12) * (text.split('\n').length) * (o.lh || 1.25) + 4, text,
+  size: 12, color: DARK, weight: 700, family: 'Montserrat, Segoe UI, Arial, sans-serif', align: 'left', ls: 0, lh: 1.25, italic: false, ...o });
+const R = (name, x, y, w, h, fill, o = {}) => ({ type: 'shape', shape: 'rect', name, x, y, w, h, fill, radius: 0, border: '', opacity: 1, ...o });
+const I = (name, src, x, y, w, h, o = {}) => ({ type: 'image', name, x, y, w, h, src: 'assets/' + src + '.png', ...o });
+const bullets = (name, x, y, w, lines, size, o = {}) => T(name, x, y, w, lines.map(l => '• ' + l).join('\n'), { size, weight: 500, lh: 1.7, ...o });
+
+function defaults() {
+  return [
+    R('Fond principal', 0, 0, 2000, 413, 'linear-gradient(180deg,#ffffff 0%,#f4fbfd 55%,#fdeef6 100%)'),
+    R('Bande cyan gauche', 0, 0, 100, 413, 'linear-gradient(180deg,#3fc3e0,#a9e6f2 60%,#ffffff)'),
+    R('Vague cyan', 90, 235, 900, 160, 'radial-gradient(ellipse at 50% 40%,rgba(255,255,255,.9),rgba(120,215,235,.35) 70%,rgba(255,255,255,0))', { radius: 80 }),
+    R('Vague rose', 1050, 245, 700, 160, 'radial-gradient(ellipse at 50% 40%,rgba(255,255,255,.9),rgba(240,120,180,.3) 70%,rgba(255,255,255,0))', { radius: 80 }),
+    R('Panneau rose droit', 1585, 0, 140, 413, 'linear-gradient(180deg,#f06fae,#c43f9b 70%,#8d4bb5)', { opacity: .9, radius: 20 }),
+    R('Dégradé droite', 1725, 0, 275, 413, 'linear-gradient(180deg,#ffffff,#fbe3f0)'),
+    I('Cerveau', 'brain', 820, 240, 95, 70),
+    I('Main + téléphone', 'phone-hand', 80, 20, 82, 180),
+    I('Dentiste + mobile', 'dentist-mobile', 350, 5, 205, 160),
+    I('Écrans (PC, laptop, tablette)', 'devices', 750, 148, 195, 57),
+    I('Infirmière + écran', 'nurse', 1235, 10, 170, 170),
+    I('Docteur', 'doctor', 1415, 5, 85, 145),
+    I('Cartes avis', 'cards', 1530, 60, 120, 175),
+    I('Scène clinique', 'clinic', 1715, 70, 285, 220),
+
+    T('Titre carte patient', 158, 18, 200, 'CARTE PATIENT\nÉLECTRONIQUE', { size: 17, color: PINK }),
+    bullets('Liste carte patient', 164, 63, 190, ['Accès à leur dossier médical', 'Disponible en Français et arabe', 'Notifications et rappels de soins'], 8),
+    T('Dentus mobile', 400, 21, 180, 'DENTUS MOBILE', { size: 16, color: CYAN, weight: 800 }),
+    T('Pour les médecins', 400, 37, 180, 'POUR LES MÉDECINS', { size: 12, color: PINK }),
+    T('Votre cabinet', 459, 51, 120, 'VOTRE CABINET', { size: 9.5 }),
+    T('Dans votre poche', 471, 61, 120, 'dans votre poche', { size: 9, weight: 500 }),
+    T('Consultez Planifiez Gérez', 480, 165, 90, 'Consultez\nPlanifiez\nGérez…', { size: 12.5, lh: 1.15 }),
+    T('Où que vous soyez', 480, 209, 90, 'où que vous soyez.', { size: 7.5 }),
+
+    T('Votre (script)', 598, 74, 70, 'Votre', { size: 23, family: 'Brush Script MT, cursive', italic: true, weight: 400, color: GREY }),
+    T('AI', 598, 98, 60, 'ai', { size: 44, color: '#b57ad8', weight: 800, h: 50 }),
+    T('Badge ASSISTANT', 660, 92, 100, 'ASSISTANT', { size: 13, color: '#fff', weight: 800, align: 'center', h: 18 }),
+    R('Fond ASSISTANT', 655, 92, 106, 17, 'linear-gradient(90deg,#b57ad8,#e8457f)', { radius: 2 }),
+    T('connaît vos', 655, 106, 110, 'connaît vos', { size: 16, weight: 500, color: GREY }),
+    T('CHIFFRES', 655, 122, 120, 'C H I F F R E S', { size: 8, ls: 1.5 }),
+    bullets('Liste assistant IA', 598, 146, 190, ['Vous posez la question?\n   Il vous répond.', 'IA spécialisée dentaire', 'Chat statistique intelligent', 'Analyses instantanées & parlantes'], 7.5, { lh: 1.55 }),
+
+    T('Logo DENTUS (centre)', 815, 88, 120, 'DENTUS', { size: 21, weight: 300, color: '#5fc6df', ls: 1 }),
+    T('iQ (centre)', 898, 90, 20, 'iQ', { size: 7, color: PINK }),
+    T('Prenez les commandes', 782, 118, 180, 'PRENEZ LES COMMANDES', { size: 11, color: PINK, weight: 800 }),
+    T('de votre clinique', 812, 131, 150, 'DE VOTRE CLINIQUE.', { size: 11, color: CYAN, weight: 800 }),
+
+    T('La solution', 996, 55, 160, 'LA SOLUTION', { size: 18, color: CYAN, weight: 800 }),
+    T('Intelligente', 996, 75, 160, 'INTELLIGENTE', { size: 18, color: PINK, weight: 800 }),
+    T('Pour gérer', 996, 94, 160, 'pour gérer votre clinique dentaire', { size: 8, weight: 600 }),
+    bullets('Liste solution', 998, 117, 170, ['Le logiciel de gestion pour cabinet dentaire\nDossiers patients numériques', 'Prise de rendez-vous intelligente', 'Gestion des stocks, paiements & planning', 'Tableau de bord avec statistiques\nen temps réel', 'Gain de temps, organisation optimale\nmoins de stress.'], 5.5, { lh: 1.55 }),
+
+    T('Pourquoi choisir', 1180, 85, 150, 'Pourquoi choisir', { size: 13 }),
+    T('DENTUS ?', 1180, 99, 150, 'DENTUS ?', { size: 23, color: PINK, weight: 900, h: 28 }),
+    ...[
+      ['PENSÉ POUR LES DENTISTES', 'Interface intuitive, simple à prendre en main', 126],
+      ['TECHNOLOGIE MODERNE', 'Angular, Node.js, IA intégrée, temps réel', 148],
+      ['5 ANS DE CONFIANCE', 'Déjà plus de 300 cabinets équipés.', 168],
+      ['DISPONIBLE PARTOUT', 'PC, tablette, mobile - même hors connexion.', 190],
+      ['SUPPORT RÉACTIF & LOCAL', 'Une équipe proche de vous, toujours à l\'écoute.', 211]
+    ].flatMap(([a, b, y], i) => [
+      R('Carte raison ' + (i + 1), 1182, y - 2, 175, 20, 'linear-gradient(90deg,#fbe3ee,#fff)', { radius: 2 }),
+      T('Raison ' + (i + 1) + ' titre', 1184, y, 175, a, { size: 7.5, weight: 800, h: 10 }),
+      T('Raison ' + (i + 1) + ' texte', 1184, y + 9, 175, b, { size: 5.2, weight: 500, h: 8 })
+    ]),
+
+    T('Le bon', 1502, 37, 90, 'LE BON', { size: 15, weight: 800 }),
+    T('Choix', 1502, 50, 90, 'CHOIX', { size: 21, weight: 900, h: 26 }),
+    T('Tout simplement', 1502, 72, 100, 'TOUT SIMPLEMENT', { size: 6.5 }),
+
+    T('Logo DENTUS (droite)', 1800, 36, 170, 'DENTUS', { size: 28, weight: 300, color: '#5fc6df', ls: 1 }),
+    T('iQ (droite)', 1935, 40, 20, 'iQ', { size: 9, color: PINK }),
+    T('Le futur', 1800, 68, 190, 'Le Futur de la Gestion Dentaire', { size: 9, color: PINK, weight: 600 }),
+    T('Découvrez comment', 1755, 306, 240, 'Découvrez comment\nle Logiciel Dentus\nTrasforme votre quotidien', { size: 17.5, lh: 1.15, h: 64 })
+  ];
+}
+
+/* ---------- state helpers ---------- */
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), ov = $('#ov'), marq = $('#marq'), holder = $('#holder');
+const snap = () => JSON.stringify(objs);
+function commit() { undoS.push(snap()); if (undoS.length > 100) undoS.shift(); redoS = []; persist(); }
+function persist() { try { localStorage.setItem(KEY, snap()); } catch (e) {} }
+function assignIds() { objs.forEach(o => { if (!o.id) o.id = 'o' + (uid++); }); }
+function restore(s) { objs = JSON.parse(s); sel = new Set([...sel].filter(i => objs.some(o => o.id === i))); render(); persist(); }
+const byId = id => objs.find(o => o.id === id);
+const selObjs = () => objs.filter(o => sel.has(o.id));
+const one = () => (sel.size === 1 ? selObjs()[0] : null);
+
+/* ---------- rendering ---------- */
+function styleEl(el, o) {
+  const s = el.style;
+  s.left = o.x + 'px'; s.top = o.y + 'px'; s.width = o.w + 'px'; s.height = o.h + 'px';
+  s.transform = o.rot ? `rotate(${o.rot}deg)` : '';
+  s.opacity = o.opacity ?? 1;
+  s.pointerEvents = o.locked ? 'none' : 'auto';
+  if (o.type === 'text') {
+    Object.assign(s, { fontSize: o.size + 'px', color: o.color, fontWeight: o.weight, fontFamily: o.family, textAlign: o.align,
+      letterSpacing: o.ls + 'px', lineHeight: o.lh, fontStyle: o.italic ? 'italic' : 'normal' });
+    if (o.gradient) { s.background = o.gradient; s.webkitBackgroundClip = 'text'; s.backgroundClip = 'text'; s.color = 'transparent'; s.webkitTextFillColor = 'transparent'; }
+    else { s.background = ''; s.webkitTextFillColor = ''; s.backgroundClip = ''; }
+  } else if (o.type === 'shape') {
+    s.background = o.fill; s.borderRadius = o.shape === 'ellipse' ? '50%' : o.radius + 'px'; s.border = o.border || 'none';
+  }
+}
+function render() {
+  if (editing) return;
+  stage.innerHTML = '';
+  objs.forEach(o => {
+    const el = document.createElement('div');
+    el.className = 'obj ' + o.type; el.dataset.id = o.id;
+    if (o.type === 'text') el.textContent = o.text;
+    if (o.type === 'image') { const im = document.createElement('img'); im.src = o.src; im.draggable = false; im.style.objectFit = o.fit || 'fill'; el.appendChild(im); }
+    styleEl(el, o);
+    stage.appendChild(el);
+  });
+  drawOverlay(); drawLayers(); drawProps();
+}
+function drawOverlay() {
+  ov.innerHTML = '';
+  const hs = 9 / zoom;
+  selObjs().forEach(o => {
+    const b = document.createElement('div'); b.className = 'sb';
+    Object.assign(b.style, { left: o.x + 'px', top: o.y + 'px', width: o.w + 'px', height: o.h + 'px', transform: o.rot ? `rotate(${o.rot}deg)` : '', borderWidth: 1 / zoom + 'px' });
+    if (sel.size === 1 && !o.locked) {
+      [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].forEach(([sx, sy]) => {
+        const h = document.createElement('div'); h.className = 'h'; h.dataset.sx = sx; h.dataset.sy = sy;
+        Object.assign(h.style, { width: hs + 'px', height: hs + 'px', left: `calc(${(sx + 1) * 50}% - ${hs / 2}px)`, top: `calc(${(sy + 1) * 50}% - ${hs / 2}px)`, cursor: ({ '-1-1': 'nwse', '11': 'nwse', '1-1': 'nesw', '-11': 'nesw', '0-1': 'ns', '01': 'ns', '-10': 'ew', '10': 'ew' })[sx + '' + sy] + '-resize' });
+        b.appendChild(h);
+      });
+      const r = document.createElement('div'); r.className = 'h rot'; r.dataset.rot = 1;
+      Object.assign(r.style, { width: hs + 'px', height: hs + 'px', left: `calc(50% - ${hs / 2}px)`, top: -22 / zoom + 'px', cursor: 'grab' });
+      b.appendChild(r);
+    }
+    ov.appendChild(b);
+  });
+}
+function drawLayers() {
+  const L = $('#layerList'); L.innerHTML = '';
+  [...objs].reverse().forEach(o => {
+    const d = document.createElement('div'); d.className = 'layer' + (sel.has(o.id) ? ' on' : '');
+    d.textContent = (o.type === 'text' ? 'T ' : o.type === 'image' ? '▣ ' : '◼ ') + (o.locked ? '🔒 ' : '') + o.name;
+    d.onclick = e => { e.shiftKey ? (sel.has(o.id) ? sel.delete(o.id) : sel.add(o.id)) : (sel = new Set([o.id])); render(); };
+    L.appendChild(d);
+  });
+}
+
+/* ---------- properties panel ---------- */
+function row(label, input) { const r = document.createElement('div'); r.className = 'row'; const l = document.createElement('label'); l.textContent = label; r.append(l, input); return r; }
+function inp(type, get, set, extra = {}) {
+  const i = document.createElement('input'); i.type = type; Object.assign(i, extra); i.value = get();
+  i.onfocus = () => i._snap = snap();
+  i.oninput = () => { set(i.value); styleAll(); drawOverlay(); persist(); };
+  i.onchange = () => { if (i._snap !== snap()) { const cur = snap(); undoS.push(i._snap); redoS = []; } };
+  return i;
+}
+function styleAll() { objs.forEach(o => { const el = stage.querySelector(`[data-id="${o.id}"]`); if (el) { styleEl(el, o); if (o.type === 'text' && el.textContent !== o.text && !editing) el.textContent = o.text; } }); }
+function drawProps() {
+  const P = $('#props'); P.innerHTML = '<h4>Propriétés</h4>';
+  const os = selObjs();
+  if (!os.length) { P.insertAdjacentHTML('beforeend', '<p class="hint">Cliquez un objet pour le sélectionner. Glissez sur le fond pour une sélection multiple (Maj = ajouter).<br><br><b>Double-clic</b> sur un texte pour l\'éditer.<br>Poignées : redimensionner / rotation.<br>Flèches : déplacer (Maj = ×10).<br>Suppr, Ctrl+Z/Y, Ctrl+D, Ctrl+A.</p>'); return; }
+  const o = os[0], multi = os.length > 1;
+  const each = fn => os.forEach(fn);
+  P.append(row('Nom', inp('text', () => multi ? os.length + ' objets' : o.name, v => { if (!multi) { o.name = v; } }, { disabled: multi })));
+  [['X', 'x'], ['Y', 'y'], ['Largeur', 'w'], ['Hauteur', 'h'], ['Rotation °', 'rot']].forEach(([l, k]) =>
+    P.append(row(l, inp('number', () => Math.round((o[k] || 0) * 10) / 10, v => { const d = +v - (o[k] || 0); each(t => { t[k] = (t[k] || 0) + d; }); }, { step: 1 }))));
+  P.append(row('Opacité', inp('number', () => o.opacity ?? 1, v => each(t => t.opacity = +v), { step: .05, min: 0, max: 1 })));
+  if (!multi && o.type === 'text') {
+    const ta = document.createElement('textarea'); ta.value = o.text;
+    ta.onfocus = () => ta._s = snap(); ta.oninput = () => { o.text = ta.value; styleAll(); persist(); }; ta.onblur = () => { if (ta._s !== snap()) { undoS.push(ta._s); redoS = []; } };
+    P.append(ta);
+  }
+  const texts = os.filter(t => t.type === 'text');
+  if (texts.length) {
+    P.insertAdjacentHTML('beforeend', '<h4>Texte</h4>');
+    P.append(row('Couleur', inp('color', () => texts[0].color.startsWith('#') && texts[0].color.length === 7 ? texts[0].color : '#000000', v => texts.forEach(t => { t.color = v; t.gradient = ''; }))));
+    P.append(row('Taille', inp('number', () => texts[0].size, v => texts.forEach(t => t.size = +v), { step: .5, min: 1 })));
+    P.append(row('Graisse', inp('number', () => texts[0].weight, v => texts.forEach(t => t.weight = +v), { step: 100, min: 100, max: 900 })));
+    P.append(row('Police', inp('text', () => texts[0].family, v => texts.forEach(t => t.family = v))));
+    P.append(row('Interlettre', inp('number', () => texts[0].ls, v => texts.forEach(t => t.ls = +v), { step: .5 })));
+    P.append(row('Interligne', inp('number', () => texts[0].lh, v => texts.forEach(t => t.lh = +v), { step: .05, min: .5 })));
+    const al = document.createElement('select'); ['left', 'center', 'right', 'justify'].forEach(a => al.add(new Option(a, a))); al.value = texts[0].align;
+    al.onfocus = () => al._s = snap(); al.onchange = () => { undoS.push(al._s); redoS = []; texts.forEach(t => t.align = al.value); styleAll(); persist(); };
+    P.append(row('Alignement', al));
+    const it = document.createElement('input'); it.type = 'checkbox'; it.checked = !!texts[0].italic; it.onchange = () => { commit0(); texts.forEach(t => t.italic = it.checked); styleAll(); persist(); };
+    P.append(row('Italique', it));
+    P.append(row('Dégradé CSS', inp('text', () => texts[0].gradient || '', v => texts.forEach(t => t.gradient = v))));
+  }
+  const shapes = os.filter(t => t.type === 'shape');
+  if (shapes.length) {
+    P.insertAdjacentHTML('beforeend', '<h4>Forme</h4>');
+    P.append(row('Fond CSS', inp('text', () => shapes[0].fill, v => shapes.forEach(t => t.fill = v))));
+    P.append(row('Couleur unie', inp('color', () => /^#[0-9a-f]{6}$/i.test(shapes[0].fill) ? shapes[0].fill : '#e8457f', v => shapes.forEach(t => t.fill = v))));
+    P.append(row('Arrondi', inp('number', () => shapes[0].radius, v => shapes.forEach(t => t.radius = +v), { min: 0 })));
+    P.append(row('Bordure CSS', inp('text', () => shapes[0].border || '', v => shapes.forEach(t => t.border = v))));
+  }
+  if (!multi && o.type === 'image') {
+    P.insertAdjacentHTML('beforeend', '<h4>Image</h4>');
+    const b = document.createElement('button'); b.textContent = 'Remplacer l\'image…'; b.onclick = () => pickImage(src => { commit0(); o.src = src; render(); persist(); });
+    P.append(b);
+    const f = document.createElement('select'); ['fill', 'cover', 'contain'].forEach(a => f.add(new Option(a, a))); f.value = o.fit || 'fill';
+    f.onchange = () => { commit0(); o.fit = f.value; render(); persist(); }; P.append(row('Ajustement', f));
+  }
+}
+const commit0 = () => { undoS.push(snap()); redoS = []; };
+
+/* ---------- pointer interaction ---------- */
+function pt(e) { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }
+let drag = null;
+holder.addEventListener('mousedown', e => {
+  if (editing) return;
+  const p = pt(e), h = e.target.closest('.h'), el = e.target.closest('.obj');
+  if (h) {
+    const o = one(); undoS.push(snap()); redoS = [];
+    if (h.dataset.rot) drag = { k: 'rot', o, cx: o.x + o.w / 2, cy: o.y + o.h / 2 };
+    else drag = { k: 'resize', o, sx: +h.dataset.sx, sy: +h.dataset.sy, p0: p, o0: { ...o } };
+  } else if (el) {
+    const id = el.dataset.id;
+    if (e.shiftKey) { sel.has(id) ? sel.delete(id) : sel.add(id); }
+    else if (!sel.has(id)) sel = new Set([id]);
+    undoS.push(snap()); redoS = [];
+    drag = { k: 'move', p0: p, starts: selObjs().filter(o => !o.locked).map(o => [o, o.x, o.y]), moved: false };
+    drawOverlay(); drawLayers(); drawProps();
+  } else {
+    if (!e.shiftKey) sel = new Set();
+    drag = { k: 'marq', p0: p, base: new Set(sel) };
+    drawOverlay(); drawLayers(); drawProps();
+  }
+  e.preventDefault();
+});
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const p = pt(e);
+  if (drag.k === 'move') {
+    const dx = p.x - drag.p0.x, dy = p.y - drag.p0.y; drag.moved = drag.moved || Math.abs(dx) + Math.abs(dy) > 1;
+    drag.starts.forEach(([o, x, y]) => { o.x = Math.round(x + dx); o.y = Math.round(y + dy); });
+    styleAll(); drawOverlay();
+  } else if (drag.k === 'resize') {
+    const { o, o0, sx, sy } = drag, a = (o0.rot || 0) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const dx = p.x - drag.p0.x, dy = p.y - drag.p0.y;
+    const dxl = dx * c + dy * s, dyl = -dx * s + dy * c;
+    let w = Math.max(4, o0.w + sx * dxl), h = Math.max(4, o0.h + sy * dyl);
+    if (e.shiftKey && sx && sy) { const k = Math.max(w / o0.w, h / o0.h); w = o0.w * k; h = o0.h * k; }
+    const ddw = (w - o0.w) * sx / 2, ddh = (h - o0.h) * sy / 2;
+    const cx = o0.x + o0.w / 2 + ddw * c - ddh * s, cy = o0.y + o0.h / 2 + ddw * s + ddh * c;
+    o.w = Math.round(w); o.h = Math.round(h); o.x = Math.round(cx - o.w / 2); o.y = Math.round(cy - o.h / 2);
+    styleAll(); drawOverlay();
+  } else if (drag.k === 'rot') {
+    let deg = Math.atan2(p.y - drag.cy, p.x - drag.cx) * 180 / Math.PI + 90;
+    if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+    drag.o.rot = Math.round(deg * 10) / 10; styleAll(); drawOverlay();
+  } else if (drag.k === 'marq') {
+    const x = Math.min(p.x, drag.p0.x), y = Math.min(p.y, drag.p0.y), w = Math.abs(p.x - drag.p0.x), h = Math.abs(p.y - drag.p0.y);
+    Object.assign(marq.style, { display: 'block', left: x * zoom + 'px', top: y * zoom + 'px', width: w * zoom + 'px', height: h * zoom + 'px' });
+    sel = new Set(drag.base);
+    objs.forEach(o => { if (!o.locked && o.x < x + w && o.x + o.w > x && o.y < y + h && o.y + o.h > y && !(w < 3 && h < 3) && !(o.w > 1500)) sel.add(o.id); });
+    drawOverlay(); drawLayers();
+  }
+});
+window.addEventListener('mouseup', () => {
+  if (!drag) return;
+  if (drag.k === 'move' && !drag.moved) undoS.pop();
+  marq.style.display = 'none';
+  const k = drag.k; drag = null; persist();
+  if (k === 'marq') drawProps(); else { drawProps(); drawLayers(); }
+});
+holder.addEventListener('dblclick', e => {
+  const el = e.target.closest('.obj.text'); if (!el) return;
+  const o = byId(el.dataset.id); if (o.locked) return;
+  editing = true; el.contentEditable = 'true'; el.focus();
+  const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  const before = snap();
+  el.onblur = () => { editing = false; el.contentEditable = 'false'; o.text = el.innerText.replace(/\n$/, ''); if (before !== snap()) { undoS.push(before); redoS = []; } persist(); render(); };
+  el.onkeydown = ev => { if (ev.key === 'Escape') el.blur(); ev.stopPropagation(); };
+});
+
+/* ---------- keyboard ---------- */
+window.addEventListener('keydown', e => {
+  if (editing || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && e.target.type !== 'checkbox') return;
+  const m = e.ctrlKey || e.metaKey;
+  if (m && e.key === 'z') { e.preventDefault(); act(e.shiftKey ? 'redo' : 'undo'); }
+  else if (m && e.key === 'y') { e.preventDefault(); act('redo'); }
+  else if (m && e.key === 'd') { e.preventDefault(); act('dup'); }
+  else if (m && e.key === 'a') { e.preventDefault(); sel = new Set(objs.map(o => o.id)); render(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { act('del'); }
+  else if (e.key === 'Escape') { sel = new Set(); render(); }
+  else if (e.key.startsWith('Arrow') && sel.size) {
+    e.preventDefault(); const n = e.shiftKey ? 10 : 1; commit0();
+    selObjs().forEach(o => { if (o.locked) return; if (e.key === 'ArrowLeft') o.x -= n; if (e.key === 'ArrowRight') o.x += n; if (e.key === 'ArrowUp') o.y -= n; if (e.key === 'ArrowDown') o.y += n; });
+    styleAll(); drawOverlay(); drawProps(); persist();
+  }
+});
+
+/* ---------- actions ---------- */
+function pickImage(cb) { const f = $('#fileImg'); f.value = ''; f.onchange = () => { const r = new FileReader(); r.onload = () => cb(r.result); if (f.files[0]) r.readAsDataURL(f.files[0]); }; f.click(); }
+function add(o) { commit0(); o.id = 'o' + (uid++); objs.push(o); sel = new Set([o.id]); render(); persist(); }
+function setZoom(z) { zoom = Math.min(4, Math.max(.2, z)); stage.style.transform = ov.style.transform = `scale(${zoom})`; holder.style.width = W * zoom + 'px'; holder.style.height = H * zoom + 'px'; $('#zl').textContent = Math.round(zoom * 100) + '%'; drawOverlay(); }
+function act(a) {
+  const os = selObjs();
+  switch (a) {
+    case 'addText': add(T('Nouveau texte', 900, 180, 200, 'Nouveau texte', { size: 20, h: 30 })); break;
+    case 'addRect': add(R('Rectangle', 900, 150, 160, 80, PINK, { radius: 8 })); break;
+    case 'addEllipse': add(R('Ellipse', 900, 150, 120, 120, CYAN, { shape: 'ellipse' })); break;
+    case 'addImage': pickImage(src => { const im = new Image(); im.onload = () => { const k = Math.min(1, 300 / im.width, 300 / im.height); add({ type: 'image', name: 'Image', x: 900, y: 50, w: Math.round(im.width * k), h: Math.round(im.height * k), src }); }; im.src = src; }); break;
+    case 'undo': if (undoS.length) { redoS.push(snap()); restore(undoS.pop()); } break;
+    case 'redo': if (redoS.length) { undoS.push(snap()); restore(redoS.pop()); } break;
+    case 'dup': if (os.length) { commit0(); sel = new Set(); os.forEach(o => { const c = { ...JSON.parse(JSON.stringify(o)), id: 'o' + (uid++), x: o.x + 12, y: o.y + 12, name: o.name + ' copie' }; objs.push(c); sel.add(c.id); }); render(); persist(); } break;
+    case 'del': if (os.length) { commit0(); objs = objs.filter(o => !sel.has(o.id)); sel = new Set(); render(); persist(); } break;
+    case 'front': if (os.length) { commit0(); objs = [...objs.filter(o => !sel.has(o.id)), ...os]; render(); persist(); } break;
+    case 'back': if (os.length) { commit0(); objs = [...os, ...objs.filter(o => !sel.has(o.id))]; render(); persist(); } break;
+    case 'lock': if (os.length) { commit0(); const v = !os[0].locked; os.forEach(o => o.locked = v); render(); persist(); } break;
+    case 'zoomIn': setZoom(zoom * 1.2); break;
+    case 'zoomOut': setZoom(zoom / 1.2); break;
+    case 'fit': setZoom(($('#wrap').clientWidth - 70) / W); break;
+    case 'save': { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([snap()], { type: 'application/json' })); a.download = 'dentus-banner.json'; a.click(); break; }
+    case 'load': { const f = $('#fileJson'); f.value = ''; f.onchange = () => { const r = new FileReader(); r.onload = () => { try { commit0(); objs = JSON.parse(r.result); assignIds(); sel = new Set(); render(); persist(); } catch (e) { alert('JSON invalide'); } }; if (f.files[0]) r.readAsText(f.files[0]); }; f.click(); break; }
+    case 'reset': if (confirm('Restaurer la bannière d\'origine ?')) { commit0(); objs = defaults(); assignIds(); sel = new Set(); render(); persist(); } break;
+  }
+}
+document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => act(b.dataset.a));
+
+/* ---------- boot ---------- */
+try { const s = localStorage.getItem(KEY); if (s) objs = JSON.parse(s); } catch (e) {}
+if (!objs.length) objs = defaults();
+objs.forEach(o => { const n = parseInt((o.id || '').slice(1)); if (n >= uid) uid = n + 1; });
+assignIds(); setZoom(1); act('fit'); render();
+window.addEventListener('resize', () => act('fit'));
+</script>
+</body>
+</html>
